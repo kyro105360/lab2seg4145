@@ -22,9 +22,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "fonts.h"
-#include "stdio.h"
-#include "string.h"
 #include "ssd1306.h"
+#include "stdio.h"
 
 /* USER CODE END Includes */
 
@@ -44,9 +43,11 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-I2C_HandleTypeDef hi2c1;
-UART_HandleTypeDef huart2;
 ADC_HandleTypeDef hadc1;
+
+I2C_HandleTypeDef hi2c1;
+
+UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 
@@ -64,7 +65,6 @@ static void MX_ADC1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
 uint32_t sensorValue = 0;
 float fvoltage = 0;
 
@@ -77,11 +77,14 @@ int uart2_write(int ch)
 	USART2->DR	=  (ch & 0xFF);
 	return ch;
 }
-int _write(int file, char *ptr, int len)
+
+int __io_putchar(int ch)
 {
-    HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, HAL_MAX_DELAY);
-    return len;
+	uart2_write(ch);
+	return ch;
 }
+
+
 /* USER CODE END 0 */
 
 /**
@@ -90,7 +93,7 @@ int _write(int file, char *ptr, int len)
   */
 int main(void)
 {
-
+	char msg[100];
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -117,34 +120,48 @@ int main(void)
   MX_I2C1_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
+
   SSD1306_Init();
   char snum[5];
-  char msg[100];
-  SSD1306_Puts ("VOLTAGE", &Font_11x18, 1);
 
+  SSD1306_GotoXY (0,0);
+  SSD1306_Puts ("DIGITAL", &Font_11x18, 1);
+  SSD1306_GotoXY (0, 30);
+  SSD1306_Puts ("VOLTMETER", &Font_11x18, 1);
+  SSD1306_UpdateScreen();
+
+  SSD1306_ScrollRight(0,7);
+  SSD1306_ScrollLeft(0,7);
+  SSD1306_Stopscroll();
+  SSD1306_Clear();
+  SSD1306_GotoXY (35,0);
+  SSD1306_Puts ("VOLTAGE", &Font_11x18, 1);
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  HAL_ADC_Start(&hadc1);
   while (1)
   {
+	  /*1. Start ADC */
+	 	  	 HAL_ADC_Start(&hadc1);
 
-		HAL_ADC_Start(&hadc1);
-		HAL_ADC_PollForConversion(&hadc1, 1);
-	  	sensorValue = HAL_ADC_GetValue(&hadc1);
-	  	fvoltage = (float)sensorValue * (3.3/4095.0);
+	 	  	 /*2. Poll for conversion */
+	 	  	 HAL_ADC_PollForConversion(&hadc1,1);
 
-		sprintf(msg, "%f\r\n", fvoltage);
-		HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
-		sprintf(snum, "%f", fvoltage);
+	 	  	 /*3. Get conversion */
+	 	  	 sensorValue = HAL_ADC_GetValue(&hadc1);
+	 	  	 fvoltage = (float)sensorValue * (3.3/4095.0);
 
-	  	SSD1306_Clear();
-	  	SSD1306_GotoXY(0, 30);
-	  	SSD1306_Puts (snum, &Font_16x26, 1);
-	  	SSD1306_UpdateScreen();
 
-	  	HAL_Delay (500);
+
+	 	  sprintf(msg, "%f\r\n", fvoltage);
+	 	  HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+
+	  		SSD1306_GotoXY (0, 30);
+	  		SSD1306_Puts (msg, &Font_16x26, 1);
+	  		SSD1306_UpdateScreen();
 
     /* USER CODE END WHILE */
 
@@ -201,6 +218,58 @@ void SystemClock_Config(void)
 }
 
 /**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.ScanConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_0;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
   * @brief I2C1 Initialization Function
   * @param None
   * @retval None
@@ -233,59 +302,6 @@ static void MX_I2C1_Init(void)
   /* USER CODE END I2C1_Init 2 */
 
 }
-
-/**
-  * @brief ADC1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_ADC1_Init(void)
-{
-
-  /* USER CODE BEGIN ADC1_Init 0 */
-
-  /* USER CODE END ADC1_Init 0 */
-
-  ADC_ChannelConfTypeDef sConfig = {0};
-
-  /* USER CODE BEGIN ADC1_Init 1 */
-
-  /* USER CODE END ADC1_Init 1 */
-
-  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
-  */
-  hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
-  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
-  hadc1.Init.ScanConvMode = DISABLE;
-  hadc1.Init.ContinuousConvMode = ENABLE;
-  hadc1.Init.DiscontinuousConvMode = DISABLE;
-  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
-  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 1;
-  hadc1.Init.DMAContinuousRequests = DISABLE;
-  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
-  if (HAL_ADC_Init(&hadc1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
-  */
-  sConfig.Channel = ADC_CHANNEL_0;
-  sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN ADC1_Init 2 */
-
-  /* USER CODE END ADC1_Init 2 */
-
-}
-
 
 /**
   * @brief USART2 Initialization Function
